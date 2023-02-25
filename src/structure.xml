@@ -1,0 +1,21 @@
+<?xml version="1" author="author name" description="UI purposes"?> <!--This is optional-->	
+<xml>
+	<!--With var just like in HTML, data-anyname will be a named variable that can be used-->
+	<var data-FrameColor=Color3.new(1,0,1)>
+	<var data-AnchorVector=Vector2.new(.5,.5)>
+
+	<ScreenGui Parent=StarterGui ResetOnSpawn=false>
+		<Frame BackgroundColor3=data-FrameColor AnchorPoint=data-AnchorVector>
+			<!--A comment about anything-->
+			<TextLabel>This Is Funny And Gonna Be Real</TextLabel>
+			<TextButton>
+				<!--Maybe some custom's too? mine as well get creative with our custom XML lang-->
+				<b>Im Bold and bright</b>
+			</TextButton>
+			<!--Pushing Limits already?-->
+			<script type="server/local/module">
+				print("Hello World From XML Lua.")
+			</script>
+		</Frame>
+	</ScreenGui>
+</xml>
