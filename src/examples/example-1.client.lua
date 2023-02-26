@@ -1,4 +1,6 @@
-local XML = [[]]
+local XML = [[
+<var data-test=newvar>
+]]
 
 local XML_Module = require(path.XML)
 

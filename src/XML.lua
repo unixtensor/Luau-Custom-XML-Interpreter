@@ -30,13 +30,7 @@
 
 local XML = {}
 XML.__index = XML
-XML.__cache = {}
-
-
-local Valid_Insts = {
-	["ScreenGui"] = true,
-	["Frame"] = true
-}
+XML.__cache = {variables = {}}
 
 local function RBLXCreate(Inst, Props)
 	local C = Instance.new(Inst)
@@ -46,8 +40,35 @@ local function RBLXCreate(Inst, Props)
 	end
 end
 
-local function Get_XML_special()
-
+local function Wrap_data_props(XML_props)
+	local Wrap = {}
+	local IsAServicePath = function(potential_S)
+		--Imagine a world where ":FindService" would return false and not an error...
+		local S_exist, S = pcall(game.GetService, game, potential_S)
+		return S_exist and S
+	end
+	for prop, val in XML_props do
+		if prop == "Parent" then
+			--Convert strings to service
+			if val == "workspace" then
+				val = "Workspace" 
+			end
+			local Service = IsAServicePath(val)
+			if Service then
+				Wrap[prop] = Service
+			end
+		elseif prop == "true" or prop == "false" then
+			--Convert strings to bool
+			--Idk.. this is pure prediction that this will be an actual bool and not a string as a bool
+			Wrap[prop] = val == "true"
+		elseif tonumber(val) then
+			--Convert strings to number(s)
+			Wrap[prop] = tonumber(val)
+		else
+			Wrap[prop] = val
+		end
+	end
+	return Wrap
 end
 
 local function Get_XML_props(attrs)
@@ -62,36 +83,66 @@ local function Get_XML_props(attrs)
 	return props
 end
 
-local function IsAServicePath(potential_S)
-	--Imagine a world where ":FindService" would return false and not an error...
-	local S_exist, S = pcall(game.GetService, game, potential_S)
-	return S_exist and S
-end
-
-local function Wrap_data_props(XML_props)
-	local Wrap = {}
-	for prop, val in XML_props do
-		if prop == "Parent" then
-			--Convert strings to service
-			if val == "workspace" then
-				val = "Workspace" 
-			end
-			local Service = IsAServicePath(val)
-			if Service then
-				Wrap[prop] = Service
-			end
-		elseif prop == "true" or prop == "false" then
-			--Convert strings to bool
-			--Idk.. this is pure prediction that this will be an actual bool and not a string as a bool
-			Wrap[prop] = val == "true" and true
-		elseif tonumber(val) then
-			--Convert strings to number(s)
-			Wrap[prop] = tonumber(val)
-		else
-			Wrap[prop] = val
+local function New_XML_var(self, Query_var)
+	local Query_var_sub, Query_var_state = Query_var:sub(1,5), Query_var:sub(6,#Query_var)
+	local Query_var_val = Query_var_sub == "data-" or Query_var_sub == "DATA-"
+	if Query_var_val then
+		local var_value = Query_var_state:split('=')[2]
+		if var_value then
+			self.__cache.variables[Query_var_state] = var_value
 		end
 	end
-	return Wrap
+end
+
+local Base_Instances = {
+	["ScreenGui"] = true,
+	["Frame"] = true
+}
+local Special_cases = {
+	Small = { --Small form <Tag Attr=Value>
+		["var"] = New_XML_var
+	},
+	Full = { --Full form <Tag Attr=Value>Inner</Tag>
+	}
+}
+local function make(self)
+	local function AnalizeFull()
+		local Query_ana_full = self.XML_Source:gmatch("<([%s%S]+)(.-)>(.-)</(%1)>")
+		for XML_Tag,XML_RawAT,XML_Value,_ in Query_ana_full do
+			local Xraw_data = {
+				XML_Tag = XML_Tag,
+				XML_Value = XML_Value,
+				XML_Attribute = XML_RawAT:gsub(' ',''):split(' ')
+			}
+			local Syntax_Base = Base_Instances[XML_Tag]
+			if Syntax_Base then
+				RBLXCreate(XML_Tag, Wrap_data_props(Get_XML_props(Xraw_data.XML_Attribute)))
+			else
+				--Syntax is incorrect
+				warn("Unknown XML Tag: \""..XML_Tag.."\".")
+			end
+			table.insert(self.__cache, Xraw_data)
+		end
+	end
+
+	local Query_ana_part = self.XML_Source:gmatch("<([%s%S]+)(.-)(%1)>")
+	for XML_Tag,XML_RawAT in Query_ana_part do
+		local S_caseF = Special_cases.Small[XML_Tag]
+		if S_caseF then
+			S_caseF(self, {
+				XML_Tag = XML_Tag,
+				XML_Attribute = XML_RawAT:gsub(' ',''):split(' ')
+			})
+		else
+			AnalizeFull()
+			break
+		end
+	end
+
+	local stashed_metadata = self.__cache
+	self.__cache = {variables = {}}
+	XML.__cache = {}
+	return stashed_metadata
 end
 
 -- Support for pascal casing and snake casing
@@ -100,35 +151,9 @@ function XML.new(from_argSource)
 end
 XML.New = XML.new
 
-function XML:Interpreter()
-	local S = self.XML_Source
-	local Xpat = "<([%s%S]+)(.-)>(.-)</(%1)>"
-	for Tag,RawAT,Value,_ in S:gmatch(Xpat) do
-		local raw_data = {
-			Tag = Tag, 
-			Value = Value,
-			Attr = RawAT:split(' ')
-		}
-		if raw_data.Attr[1] == "" then --Clear a possible empty block
-			table.remove(raw_data.Attr, 1)
-		end
-		table.insert(self.__cache, raw_data)
-	end
-	for i = 1, #self.__cache do
-		local v = self.__cache[i]
-		if Valid_Insts[v.Tag] then
-			local Converted_data = Wrap_data_props(Get_XML_props(v.Attr))
-			RBLXCreate(v.Tag, Converted_data)
-		else
-			--Handle specials
-		end
-	end
-	
-	local stashed_cache = self.__cache
-	self.__cache = {}
-	XML.__cache = {}
-	return stashed_cache
+function XML:Make()
+	return make(self)
 end
-function XML:interpreter(...) return XML:Interpreter(...) end
+function XML:make(...) return XML:Make(...) end
 
 return XML
