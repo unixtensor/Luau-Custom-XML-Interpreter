@@ -1,35 +1,34 @@
+-- @Author: interpreterK
+-- @Repository: https://github.com/interpreterK/Luau-Custom-XML-Interpreter
 --[[
 	The XML scripting structure:
-	"
-<?xml version="1" author="author name" description="UI purposes"?> <!--This is optional-->	
-<xml>
-	<!--With var just like in HTML, data-anyname will be a named variable that can be used-->
-	<var data-FrameColor=Color3.new(1,0,1)>
-	<var data-AnchorVector=Vector2.new(.5,.5)>
 
-	<ScreenGui Parent=game:GetService("StarterGui") ResetOnSpawn=false>
-		<Frame BackgroundColor3=data-FrameColor AnchorPoint=data-AnchorVector>
-			<!--A comment about anything-->
-			<TextLabel>This Is Funny And Gonna Be Real</TextLabel>
-			<TextButton>
-				<!--Maybe some custom's too? mine as well get creative with our custom XML lang-->
-				<b>Im Bold and bright</b>
-			</TextButton>
-			<!--Pushing Limits already?-->
-			<script type="server/local/module">
-				print("Hello World From XML Lua.")
-			</script>
-		</Frame>
-	</ScreenGui>
-</xml>
-	"
-	
-	The XML data structure:
+	<?xml version="1" author="author name" description="UI purposes"?> <!--This is optional-->	
+	<xml>
+		<!--With var just like in HTML, data-anyname will be a named variable that can be used-->
+		<var data-FrameColor=Color3.new(1,0,1)>
+		<var data-AnchorVector=Vector2.new(.5,.5)>
 
+		<ScreenGui Parent=StarterGui ResetOnSpawn=false>
+			<Frame BackgroundColor3=data-FrameColor AnchorPoint=data-AnchorVector>
+				<!--A comment about anything-->
+				<TextLabel>This Is Funny And Gonna Be Real</TextLabel>
+				<TextButton>
+					<!--Maybe some custom's too? mine as well get creative with our custom XML lang-->
+					<b>Im Bold and bright</b>
+				</TextButton>
+				<!--Pushing Limits already?-->
+				<script type="server/local/module">
+					print("Hello World From XML Lua.")
+				</script>
+			</Frame>
+		</ScreenGui>
+	</xml>
 ]]
 
 local XML = {}
 XML.__index = XML
+XML.__metatable = nil
 XML.__cache = {variables = {}}
 
 local function RBLXCreate(Inst, Props)
@@ -40,29 +39,30 @@ local function RBLXCreate(Inst, Props)
 	end
 end
 
+local IsAServicePath = function(potential_S)
+	local S_exist, S = pcall(game.GetService, game, potential_S)
+	return S_exist and S
+end
+
+local ConversitonTypes = {}
+ConversitonTypes["Parent"] = function(wrapper, prop, received)
+	if received == "workspace" then
+		received = "Workspace"
+	end
+	return IsAServicePath(received)
+end
+ConversitonTypes["true"] = function(_,_,received)
+	return received == "true"
+end
+ConversitonTypes["false"] = ConversitonTypes["true"]
+
 local function Wrap_data_props(XML_props)
 	local Wrap = {}
-	local IsAServicePath = function(potential_S)
-		--Imagine a world where ":FindService" would return false and not an error...
-		local S_exist, S = pcall(game.GetService, game, potential_S)
-		return S_exist and S
-	end
 	for prop, val in XML_props do
-		if prop == "Parent" then
-			--Convert strings to service
-			if val == "workspace" then
-				val = "Workspace" 
-			end
-			local Service = IsAServicePath(val)
-			if Service then
-				Wrap[prop] = Service
-			end
-		elseif prop == "true" or prop == "false" then
-			--Convert strings to bool
-			--Idk.. this is pure prediction that this will be an actual bool and not a string as a bool
-			Wrap[prop] = val == "true"
+		local C_Type = ConversitonTypes[prop]
+		if C_Type then
+			Wrap[prop] = C_Type(Wrap, prop, val)
 		elseif tonumber(val) then
-			--Convert strings to number(s)
 			Wrap[prop] = tonumber(val)
 		else
 			Wrap[prop] = val
@@ -84,12 +84,13 @@ local function Get_XML_props(attrs)
 end
 
 local function New_XML_var(self, Query_var)
-	local Query_var_sub, Query_var_state = Query_var:sub(1,5), Query_var:sub(6,#Query_var)
+	local Query_var_sub = Query_var.XML_Attribute:sub(1,5)
+	local Query_var_state = Query_var.XML_Attribute:sub(6,#Query_var.XML_Attribute)
 	local Query_var_val = Query_var_sub == "data-" or Query_var_sub == "DATA-"
 	if Query_var_val then
-		local var_value = Query_var_state:split('=')[2]
-		if var_value then
-			self.__cache.variables[Query_var_state] = var_value
+		local var_value = Query_var_state:split('=')
+		if var_value[1] and var_value[2] then
+			self.__cache.variables[var_value[1]] = var_value[2]
 		end
 	end
 end
@@ -112,7 +113,7 @@ local function make(self)
 			local Xraw_data = {
 				XML_Tag = XML_Tag,
 				XML_Value = XML_Value,
-				XML_Attribute = XML_RawAT:gsub(' ',''):split(' ')
+				XML_Attribute = XML_RawAT:gsub(' ',''):split(' ')[1]
 			}
 			local Syntax_Base = Base_Instances[XML_Tag]
 			if Syntax_Base then
@@ -125,13 +126,13 @@ local function make(self)
 		end
 	end
 
-	local Query_ana_part = self.XML_Source:gmatch("<([%s%S]+)(.-)(%1)>")
+	local Query_ana_part = self.XML_Source:gmatch("<((%1)[%s%S]+)(.-)>")
 	for XML_Tag,XML_RawAT in Query_ana_part do
 		local S_caseF = Special_cases.Small[XML_Tag]
 		if S_caseF then
 			S_caseF(self, {
 				XML_Tag = XML_Tag,
-				XML_Attribute = XML_RawAT:gsub(' ',''):split(' ')
+				XML_Attribute = XML_RawAT:gsub(' ',''):split(' ')[1]
 			})
 		else
 			AnalizeFull()
