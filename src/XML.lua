@@ -126,7 +126,7 @@ local function make(self)
 		end
 	end
 
-	local Query_ana_part = self.XML_Source:gmatch("<((%1)[%s%S]+)(.-)>")
+	local Query_ana_part = self.XML_Source:gmatch("<(%w+)(.-)>")
 	for XML_Tag,XML_RawAT in Query_ana_part do
 		local S_caseF = Special_cases.Small[XML_Tag]
 		if S_caseF then
