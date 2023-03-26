@@ -46,10 +46,7 @@ end
 
 local ConversitonTypes = {}
 ConversitonTypes["Parent"] = function(wrapper, prop, received)
-	if received == "workspace" then
-		received = "Workspace"
-	end
-	return IsAServicePath(received)
+	return received == "workspace" and "Workspace" or IsAServicePath(received)
 end
 ConversitonTypes["true"] = function(_,_,received)
 	return received == "true"
