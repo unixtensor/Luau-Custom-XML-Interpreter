@@ -1,5 +1,6 @@
 local XML = [[
 <var data-test=newvar>
+<var data-test2=newvar2>
 ]]
 
 local XML_Module = require(path.XML)

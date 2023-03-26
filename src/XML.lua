@@ -104,8 +104,8 @@ local Special_cases = {
 	}
 }
 local function make(self)
-	local function AnalizeFull()
-		local Query_ana_full = self.XML_Source:gmatch("<([%s%S]+)(.-)>(.-)</(%1)>")
+	local Analize_ForI = function(Line_str)
+		local Query_ana_full = Line_str:gmatch("<([%s%S]+)(.-)>(.-)</(%1)>")
 		for XML_Tag,XML_RawAT,XML_Value,_ in Query_ana_full do
 			local Xraw_data = {
 				XML_Tag = XML_Tag,
@@ -123,17 +123,24 @@ local function make(self)
 		end
 	end
 
-	local Query_ana_part = self.XML_Source:gmatch("<(%w+)(.-)>")
-	for XML_Tag,XML_RawAT in Query_ana_part do
-		local S_caseF = Special_cases.Small[XML_Tag]
-		if S_caseF then
-			S_caseF(self, {
-				XML_Tag = XML_Tag,
-				XML_Attribute = XML_RawAT:gsub(' ',''):split(' ')[1]
-			})
-		else
-			AnalizeFull()
-			break
+	--@!make Start
+	--Attributes come and go first,
+	local Lines = self.XML_Source:split("\n")
+	for i = 1, #Lines do
+		local Line = Lines[i]
+		local Query_ana_part = Line:gmatch("<(%w+)(.-)>")
+
+		for XML_Tag,XML_RawAT in Query_ana_part do
+			local S_caseF = Special_cases.Small[XML_Tag]
+			if S_caseF then
+				S_caseF(self, {
+					XML_Tag = XML_Tag,
+					XML_Attribute = XML_RawAT:gsub(' ',''):split(' ')[1]
+				})
+			else
+				Analize_ForI(Line)
+				break
+			end
 		end
 	end
 
